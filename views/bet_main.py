@@ -44,8 +44,12 @@ class JoinBetButton(
                 "この賭けはすでに終了しています。", ephemeral=True
             )
             return
+
+        bal = await interaction.client.db.fetch_balance(interaction.user.id)
         await interaction.response.send_message(
-            "期間を選んでください：", view=view, ephemeral=True
+            f"期間を選んでください：\n現在残高: **{bal}P**",
+            view=view,
+            ephemeral=True,
         )
 
 
