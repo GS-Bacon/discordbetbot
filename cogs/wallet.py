@@ -154,36 +154,18 @@ class BalanceUserSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         target_id = int(self.values[0])
-        guild = interaction.guild
-        member = guild.get_member(target_id) if guild else None
-        target = member or await interaction.client.fetch_user(target_id)
 
+        target = await interaction.client.fetch_user(target_id)
         balance, rows = await _build_balance_data(self.bot, target_id)
         has_trunc = len(rows) > 25
         display_rows = rows[:25]
         embed = build_balance_embed(target, balance, display_rows, has_trunc, len(rows))
 
-        # Rebuild view with updated default
-        new_view = _build_balance_view(self.bot, self.invoker_id, target_id, interaction)
+        # プルダウンを default 差し替えで再構築
+        new_view = await _build_balance_view_with_ids(
+            self.bot, self.invoker_id, target_id, interaction
+        )
         await interaction.response.edit_message(embed=embed, view=new_view)
-
-
-def _build_balance_view(
-    bot: commands.Bot,
-    invoker_id: int,
-    current_target_id: int,
-    interaction: discord.Interaction,
-) -> discord.ui.View:
-    """BalanceView を構築して返す。参加者 0 人なら空 View。"""
-    view = discord.ui.View(timeout=180)
-
-    async def _add_select() -> None:
-        pass  # placeholder; 実際は同期的に構築
-
-    # 参加者 ID を同期取得できないため、呼び出し側で既に取得済みの ids を渡す設計。
-    # ここでは view 生成時に ids が既知でないため select を含まない版を返す。
-    # 実際の構築は _build_balance_view_with_ids() を使う。
-    return view
 
 
 async def _resolve_display_name(
@@ -191,24 +173,19 @@ async def _resolve_display_name(
     guild: discord.Guild | None,
     user_id: int,
 ) -> str:
-    """ユーザー ID から表示名を取得。キャッシュになければ API フォールバック。"""
-    member = guild.get_member(user_id) if guild else None
-    if member is not None:
-        return member.display_name
-
-    if guild is not None:
-        try:
-            member = await guild.fetch_member(user_id)
+    """ユーザー ID から表示名を取得。bot.fetch_user() で確実に名前を引く。"""
+    # キャッシュヒットを最初に試みる
+    if guild:
+        member = guild.get_member(user_id)
+        if member is not None:
             return member.display_name
-        except discord.NotFound:
-            pass
-        except Exception:
-            pass
 
+    # REST API で User を取得（intents 不要、確実）
     try:
         user = await bot.fetch_user(user_id)
         return user.display_name or user.name
     except Exception:
+        logger.warning("fetch_user failed for user_id=%d", user_id)
         return f"User {user_id}"
 
 
