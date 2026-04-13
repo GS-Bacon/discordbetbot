@@ -186,6 +186,32 @@ def _build_balance_view(
     return view
 
 
+async def _resolve_display_name(
+    bot: commands.Bot,
+    guild: discord.Guild | None,
+    user_id: int,
+) -> str:
+    """ユーザー ID から表示名を取得。キャッシュになければ API フォールバック。"""
+    member = guild.get_member(user_id) if guild else None
+    if member is not None:
+        return member.display_name
+
+    if guild is not None:
+        try:
+            member = await guild.fetch_member(user_id)
+            return member.display_name
+        except discord.NotFound:
+            pass
+        except Exception:
+            pass
+
+    try:
+        user = await bot.fetch_user(user_id)
+        return user.display_name or user.name
+    except Exception:
+        return f"User {user_id}"
+
+
 async def _build_balance_view_with_ids(
     bot: commands.Bot,
     invoker_id: int,
@@ -195,14 +221,10 @@ async def _build_balance_view_with_ids(
     from db import Database
 
     db: Database = bot.db
-    participant_ids = await db.fetch_active_participant_ids()
+    registered_ids = await db.fetch_registered_user_ids(limit=25)
 
-    # current_target_id を候補に含める（進行中不参加でも選べるように）
-    all_ids: list[int] = []
-    if current_target_id not in participant_ids:
-        all_ids.append(current_target_id)
-    all_ids.extend(participant_ids)
-    all_ids = all_ids[:25]  # Discord の Select 上限
+    # current_target_id を候補に含める（users 未登録でも選べるように）
+    all_ids: list[int] = list(dict.fromkeys([current_target_id] + registered_ids))[:25]
 
     if not all_ids:
         return discord.ui.View(timeout=180)
@@ -210,9 +232,8 @@ async def _build_balance_view_with_ids(
     guild = interaction.guild
     options: list[discord.SelectOption] = []
     for uid in all_ids:
-        member = guild.get_member(uid) if guild else None
-        label = member.display_name if member else f"User {uid}"
-        label = label[:25]  # SelectOption label 最大 25 文字
+        name = await _resolve_display_name(bot, guild, uid)
+        label = name[:25]  # SelectOption label 最大 25 文字
         options.append(discord.SelectOption(
             label=label,
             value=str(uid),

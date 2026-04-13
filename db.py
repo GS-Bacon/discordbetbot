@@ -387,16 +387,11 @@ class Database:
         ) as cur:
             return await cur.fetchall()
 
-    async def fetch_active_participant_ids(self) -> list[int]:
+    async def fetch_registered_user_ids(self, limit: int = 25) -> list[int]:
+        """残高 DB に登録されている全ユーザーを残高降順で返す。"""
         async with self.conn.execute(
-            """
-            SELECT DISTINCT e.user_id
-            FROM entries e
-            INNER JOIN bets b ON e.bet_id = b.bet_id
-            WHERE b.status = 'open'
-            ORDER BY e.user_id
-            LIMIT 25
-            """,
+            "SELECT user_id FROM users ORDER BY balance DESC LIMIT ?",
+            (limit,),
         ) as cur:
             rows = await cur.fetchall()
         return [r["user_id"] for r in rows]
