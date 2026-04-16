@@ -10,8 +10,8 @@ def make_entries(*args: tuple) -> list[EntryInput]:
     return [EntryInput(entry_id=eid, period_key=pk, amount=100, weight=w) for eid, pk, w in args]
 
 
-# ケース 1: 単独勝者、k=1（経過時間 == 勝ち period ぴったり）
 def test_single_winner_k1():
+    """ケース 1: 単独勝者、k=1（経過時間が勝ち period とぴったり一致）。"""
     elapsed = float(PERIOD_SECONDS["1w"])  # 604800秒
     entries = make_entries(
         (1, "1w", 64),
@@ -30,8 +30,8 @@ def test_single_winner_k1():
     assert payouts[2] == 0
 
 
-# ケース 2: 単独勝者、k < 1（経過時間 != 勝ち period）
 def test_single_winner_k_partial():
+    """ケース 2: 単独勝者、k < 1（経過時間が勝ち period と一致しない）。"""
     # elapsed = 700000秒: "1w"(604800) に最も近い
     # dist_1w = |604800 - 700000| = 95200
     # dist_2w = |1209600 - 700000| = 509600  → "1w" が勝ち
@@ -55,8 +55,8 @@ def test_single_winner_k_partial():
     assert payouts[2] == 0
 
 
-# ケース 3: 同着、両方のグループに賭けあり
 def test_tie_both_groups():
+    """ケース 3: 同着、両方のグループに賭けあり — プールを按分して両方に配当。"""
     # "1w"(604800) と "2w"(1209600) の等距離
     # 中間点 = (604800 + 1209600) / 2 = 907200
     elapsed = (PERIOD_SECONDS["1w"] + PERIOD_SECONDS["2w"]) / 2.0
@@ -76,8 +76,8 @@ def test_tie_both_groups():
     assert payouts[2] > 0
 
 
-# ケース 4: 同着、片方のグループのみ賭けあり → そちらが全額取得
 def test_tie_one_side_empty():
+    """ケース 4: 同着、片方のグループのみ賭けあり — そちらが全額取得。"""
     elapsed = (PERIOD_SECONDS["1w"] + PERIOD_SECONDS["2w"]) / 2.0
 
     # "2w" にのみ賭けあり
@@ -94,8 +94,8 @@ def test_tie_one_side_empty():
     assert payouts[1] > 0
 
 
-# ケース 5: 勝ち period に誰も賭けていない → 全員に賭け金返金
 def test_no_bets_on_winner_returns_stake():
+    """ケース 5: 勝ち period に誰も賭けていない — 全員に賭け金を返金。"""
     elapsed = float(PERIOD_SECONDS["1w"])
 
     # "1w" に誰も賭けていない
@@ -114,8 +114,8 @@ def test_no_bets_on_winner_returns_stake():
     assert payouts[2] == 100
 
 
-# ケース 6: period 倍率によりハウス赤字（配当合計 > プール）
 def test_period_multiplier_house_deficit():
+    """ケース 6: period 倍率により配当合計がプールを超える（ハウス赤字）ことを確認。"""
     elapsed = float(PERIOD_SECONDS["1y"])  # ちょうど 1 年、k=1
 
     entries = make_entries(

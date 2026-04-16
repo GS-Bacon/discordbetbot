@@ -62,6 +62,7 @@ class _EntryFactory:
 
 class TestValidateJoin:
     def test_first_time_gives_bonus(self):
+        """初回参加時は +500 ボーナスが付与される（-100 賭け金 + 500 = +400）。"""
         bet = _make_bet()
         decision = validate_join(bet, [], list(PERIOD_KEYS), user_id=200, period_key="1w")
         assert decision.first_time is True
@@ -70,6 +71,7 @@ class TestValidateJoin:
         assert decision.weight == len(PERIOD_KEYS) ** 2
 
     def test_repeat_join_no_bonus(self):
+        """同一 bet への 2 回目以降はボーナスなし（-100 のみ）。"""
         bet = _make_bet()
         existing = [Entry(1, 1, 200, "1w", 100, 64)]
         decision = validate_join(bet, existing, list(PERIOD_KEYS), user_id=200, period_key="1mo")
@@ -77,17 +79,20 @@ class TestValidateJoin:
         assert decision.balance_delta == -100
 
     def test_closed_bet_raises(self):
+        """締め切り済みの bet に参加しようとすると BetAlreadyClosed。"""
         bet = _make_bet(status="closed")
         with pytest.raises(BetAlreadyClosed):
             validate_join(bet, [], list(PERIOD_KEYS), user_id=200, period_key="1w")
 
     def test_eliminated_period_raises(self):
+        """消滅済みの period を指定すると PeriodEliminated。"""
         bet = _make_bet()
         live = ["2w", "1mo", "3mo", "6mo", "1y"]  # "1d","3d","1w" eliminated
         with pytest.raises(PeriodEliminated):
             validate_join(bet, [], live, user_id=200, period_key="1w")
 
     def test_weight_depends_on_live_count(self):
+        """weight は有効な period 数の 2 乗で決まる。"""
         bet = _make_bet()
         live_5 = list(PERIOD_KEYS)[:5]
         live_3 = list(PERIOD_KEYS)[:3]
@@ -157,11 +162,13 @@ class TestSettle:
         assert result.payouts[2] == STAKE
 
     def test_not_creator_raises(self):
+        """作成者以外が締めようとすると NotAllowed。"""
         bet = _make_bet(creator_id=100)
         with pytest.raises(NotAllowed):
             settle(bet, [], list(PERIOD_KEYS), actor_user_id=999, now=_utc())
 
     def test_closed_bet_raises(self):
+        """既に締め切り済みの bet を再度締めると BetAlreadyClosed。"""
         bet = _make_bet(status="closed")
         with pytest.raises(BetAlreadyClosed):
             settle(bet, [], list(PERIOD_KEYS), actor_user_id=100, now=_utc())
